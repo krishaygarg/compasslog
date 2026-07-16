@@ -300,6 +300,30 @@
                 </div>
             </div>
 
+            <!-- AI SRE Diagnostic Assistant Card -->
+            <div class="card" id="ai-sre-card" style="display: none;">
+                <div class="card-title">
+                    <span>🧠 AI SRE Diagnostic Assistant</span>
+                    <span id="ai-engine-status" style="font-size: 11px; text-transform: none; color: var(--text-muted);">Active</span>
+                </div>
+                <div class="stat-grid" style="margin-bottom: 16px;">
+                    <div class="stat-box violet">
+                        <div class="stat-val" id="stat-anomalies">0</div>
+                        <div class="stat-label">AI Anomalies Flagged</div>
+                    </div>
+                    <div class="stat-box cyan">
+                        <div class="stat-val" id="stat-anomaly-rate">0%</div>
+                        <div class="stat-label">Anomaly Rate</div>
+                    </div>
+                </div>
+                <div style="background: rgba(255,255,255,0.02); padding: 12px; border-radius: 8px; border: 1px solid var(--border-glow); font-size: 13px;">
+                    <div style="font-weight: 600; color: var(--accent-secondary); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Last Incident Diagnosis:</div>
+                    <div id="ai-incident-diagnosis" style="color: #fff; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; line-height: 1.4;">No critical incidents active. System stable.</div>
+                    <div style="font-weight: 600; color: var(--accent-primary); margin-bottom: 4px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Active SRE Playbook:</div>
+                    <div id="ai-incident-playbook" style="color: var(--text-muted); line-height: 1.4; font-size: 12px;">Monitoring telemetry pipeline...</div>
+                </div>
+            </div>
+
             <div class="card" style="flex-grow: 1;">
                 <div class="card-title">Top Requested Endpoints</div>
                 <div class="leaderboard-list" id="leaderboard">
@@ -354,6 +378,19 @@
                         controls.style.display = "none";
                     }
                 }
+
+                // AI Telemetry UI visibility
+                if (config.ai_enabled) {
+                    const sreCard = document.getElementById("ai-sre-card");
+                    if (sreCard) {
+                        sreCard.style.display = "block";
+                    }
+                    const engineStatus = document.getElementById("ai-engine-status");
+                    if (engineStatus) {
+                        engineStatus.innerText = config.gemini_active ? "Active (HF + Gemini)" : "Active (HF Only)";
+                        engineStatus.style.color = config.gemini_active ? "var(--success)" : "var(--warning)";
+                    }
+                }
             })
             .catch(err => console.error("Error loading config:", err));
 
@@ -399,16 +436,84 @@
                 statSuccessRate.style.color = "var(--success)";
             }
 
+            // AI Telemetry UI metrics updates
+            const anomaliesFlaggedEl = document.getElementById("stat-anomalies");
+            const anomalyRateEl = document.getElementById("stat-anomaly-rate");
+            if (anomaliesFlaggedEl && anomalyRateEl) {
+                const count = data.ai_anomaly_count || 0;
+                anomaliesFlaggedEl.innerText = count.toLocaleString();
+                const rate = data.total_requests > 0 ? Math.round((count / data.total_requests) * 100) : 0;
+                anomalyRateEl.innerText = rate + "%";
+                
+                const sreCard = document.getElementById("ai-sre-card");
+                if (sreCard) {
+                    if (rate > 20) {
+                        sreCard.style.borderColor = "var(--error)";
+                    } else if (rate > 5) {
+                        sreCard.style.borderColor = "var(--warning)";
+                    } else {
+                        sreCard.style.borderColor = "var(--border-glow)";
+                    }
+                }
+            }
+
             // 3. Update Live Logs Console
             const logs = data.recent_logs || [];
             if (logs.length > 0) {
                 consoleStream.innerHTML = "";
+                let latestIncident = null;
+
                 logs.forEach(log => {
+                    const isAnomaly = log.code >= 500 || 
+                        (log.ai_diagnosis && log.ai_diagnosis !== "NORMAL CLIENT REQUEST" && log.ai_diagnosis !== "TELEMETRY AGENT" && log.ai_score > 0.7);
+
+                    if (isAnomaly) {
+                        latestIncident = log;
+                    }
+
                     const line = document.createElement("div");
                     line.className = "log-entry code-" + (log.code >= 500 ? "500" : log.code >= 400 ? "404" : "200");
-                    line.innerText = `${log.ip} - [${log.timestamp}] "${log.method} ${log.path}" ${log.code} ${log.size}B (${log.latency}ms)`;
+                    
+                    let aiBadge = "";
+                    if (log.ai_diagnosis) {
+                        let badgeText = log.ai_diagnosis.replace(" CLIENT REQUEST", "").replace(" FAILURE", "").replace(" ERROR", "");
+                        let badgeColor = "var(--text-muted)";
+                        if (badgeText === "NORMAL") {
+                            badgeColor = "var(--success)";
+                        } else if (badgeText === "DATABASE" || log.code >= 500) {
+                            badgeColor = "var(--error)";
+                            badgeText = "DB ERROR";
+                        } else if (badgeText === "AUTHENTICATION") {
+                            badgeColor = "var(--warning)";
+                            badgeText = "AUTH";
+                        } else if (badgeText === "NETWORK") {
+                            badgeColor = "var(--warning)";
+                            badgeText = "TIMEOUT";
+                        } else if (badgeText === "TELEMETRY AGENT") {
+                            badgeText = "AI INIT";
+                        }
+                        aiBadge = `<span style="color: ${badgeColor}; font-weight: bold; font-size: 10px; margin-right: 6px; border: 1px solid ${badgeColor}; padding: 1px 4px; border-radius: 4px;">AI: ${badgeText}</span>`;
+                    }
+
+                    const logText = `${log.ip} - [${log.timestamp}] "${log.method} ${log.path}" ${log.code} ${log.size}B (${log.latency}ms)`;
+                    line.innerHTML = aiBadge + logText;
                     consoleStream.appendChild(line);
                 });
+
+                // Update SRE card with latest critical incident
+                if (latestIncident) {
+                    const diagnosisEl = document.getElementById("ai-incident-diagnosis");
+                    const playbookEl = document.getElementById("ai-incident-playbook");
+                    
+                    if (latestIncident.gemini_diagnosis && latestIncident.gemini_diagnosis !== "Awaiting live incident telemetry...") {
+                        diagnosisEl.innerHTML = `<span style="color: var(--error); font-weight: bold;">CRITICAL INCIDENT</span> - ${latestIncident.gemini_diagnosis}`;
+                        playbookEl.innerText = latestIncident.gemini_playbook;
+                    } else {
+                        diagnosisEl.innerHTML = `<span style="color: var(--warning); font-weight: bold;">${latestIncident.ai_diagnosis}</span> [Confidence: ${Math.round(latestIncident.ai_score*100)}%]`;
+                        playbookEl.innerText = latestIncident.ai_playbook;
+                    }
+                }
+
                 // Auto scroll console to bottom
                 consoleStream.scrollTop = consoleStream.scrollHeight;
             }

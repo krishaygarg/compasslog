@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"sync/atomic"
 	"time"
@@ -89,10 +90,14 @@ func serveConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 
+	geminiActive := os.Getenv("GEMINI_API_KEY") != "" && os.Getenv("GEMINI_API_KEY") != "YOUR_GEMINI_API_KEY_HERE"
+
 	config := map[string]interface{}{
 		"log_file":          LogFilePath,
 		"generator_enabled": GeneratorEnabled,
 		"port":              ServerPort,
+		"ai_enabled":        AIEnabled,
+		"gemini_active":     geminiActive,
 	}
 
 	if err := json.NewEncoder(w).Encode(config); err != nil {

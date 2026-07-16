@@ -77,12 +77,14 @@ The project consists of three main pipelines running concurrently:
 
 ## 📂 Directory Layout
 
-- `main.go`: Application entrypoint initializing channels, coordinating goroutines, and starting the HTTP server.
-- `generator.go`: Logic for simulating realistic mock HTTP traffic (IP addresses, endpoints, random status codes with realistic weight distributions, and variable latency spikes).
-- `parser.go`: Code for reading the file line-by-line, matching log patterns with regexp, and calculating thread-safe stats.
-- `server.go`: Set up for endpoints, static HTML delivery, and SSE stream flusher.
-- `index.html`: Modern, premium visual frontend leveraging CSS backdrop-filtering, SVG graphing, and EventSource connections.
+- `main.go`: Application entrypoint initializing channels, coordinating goroutines, loading `.env`, spawning the AI sidecar process, and starting the HTTP server.
+- `generator.go`: Logic for simulating realistic mock HTTP traffic (endpoints, status code weights, and latency spikes).
+- `parser.go`: Log parsing engine tailing the target log file, classifying requests via local sidecar, caching error diagnostics, and aggregating thread-safe telemetry.
+- `anomaly_detector.py`: Python background service running a local Hugging Face zero-shot classifier model for real-time categorizations.
+- `server.go`: REST endpoint setups (`/config`, `/rate`), HTML dashboard delivery, and SSE telemetry streams.
+- `index.html`: Visual dark-mode dashboard displaying live statistics, SVG response latency, log console, and SRE AI diagnostics.
 - `go.mod`: Go module declaration.
+- `.env`: API configurations for deep Gemini incident analytics.
 
 ---
 
@@ -90,7 +92,11 @@ The project consists of three main pipelines running concurrently:
 
 ### Prerequisites
 
-- Go 1.21 or higher installed on your machine.
+- Go 1.21 or higher installed.
+- Python 3.8+ with PyTorch and Transformers installed (required ONLY if using `-ai` mode):
+  ```bash
+  pip install transformers torch
+  ```
 
 ### Command-Line Arguments
 
@@ -102,6 +108,37 @@ The project consists of three main pipelines running concurrently:
 | `-generator` | bool | `true` | Set to `false` to disable the built-in mock traffic generator. |
 | `-port` | int | `8085` | Port to start the HTTP web server and dashboard. |
 | `-regex` | string | `""` | Custom regex pattern with named capture groups. |
+| `-ai` | bool | `false` | Enable local AI anomaly detection & Gemini diagnostics telemetry. |
+
+---
+
+## 🧠 Hybrid AI SRE Diagnostics
+
+When running in AI mode (`go run . -ai=true`), `CompassLog` uses a two-tier hybrid AI architecture:
+
+### 1. Real-Time Local Tier (Hugging Face)
+All parsed log lines are analyzed locally by a background Python sidecar process executing `typeform/distilbert-base-uncased-mnli` (a lightweight 268MB zero-shot classifier). It labels logs in real-time as:
+* `NORMAL CLIENT REQUEST`
+* `DATABASE ERROR`
+* `AUTHENTICATION FAILURE`
+* `NETWORK TIMEOUT`
+
+This occurs entirely on CPU locally, introducing **zero token cost**.
+
+### 2. Deep Diagnostic Tier (Gemini)
+When a critical system anomaly occurs (e.g. status code `5xx` or high-confidence local database/auth/network failures), `CompassLog` calls the **Gemini 1.5 Flash** API:
+* **Contextual Diagnosis**: Gemini analyzes the exact log signature and generates a concise, context-aware root cause diagnosis.
+* **SRE Playbook**: Gemini outputs a step-by-step remediation playbook rendered directly in the **AI SRE Incident Diagnostic Center** card on the dashboard.
+
+### 3. Token-Saving Cache
+To remain extremely token-efficient and cost-effective, Gemini results are saved in an in-memory cache mapping unique signature keys (`Method|Path|Code`). If the same error signature recurs, it is instantly resolved from cache, **never calling the Gemini API twice for the same incident type**.
+
+### 🔑 Setting up your Gemini API Key
+To activate the Deep Diagnostic Tier, create a `.env` file in the project directory and supply your API key:
+```env
+GEMINI_API_KEY=AIzaSy...
+```
+*(If the key is missing or unset, the system will degrade gracefully, executing only the local Hugging Face real-time classification tier).*
 
 ---
 
