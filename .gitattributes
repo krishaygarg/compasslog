@@ -1,0 +1,2 @@
+# Tell GitHub's Linguist statistics parser to exclude index.html from language detection
+index.html linguist-detectable=false
