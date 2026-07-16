@@ -2,7 +2,24 @@
 
 A high-performance, real-time concurrent log parser, metrics aggregator, and hybrid AI telemetry dashboard written in Go.
 
-`CompassLog` demonstrates how to leverage Go's powerful concurrency primitives (goroutines, channels, read-write mutexes, and atomic operations) to tail logs, compute real-time web metrics, stream data over Server-Sent Events (SSE), and diagnose incidents using local Hugging Face models and Gemini.
+---
+
+## 🛠️ Core SRE Telemetry & Diagnostics Features
+
+If you are a developer doing SRE, `CompassLog` offers several core features built specifically to automate incident response and telemetry:
+
+1. **Two-Tier Hybrid AI Diagnostics (Zero-Cost + Deep RCA)**:
+   * **Real-time Local Tier (Hugging Face)**: Employs `typeform/distilbert-base-uncased-mnli` (a 268MB zero-shot classifier) in a local Python background sidecar to categorize all request streams instantly on CPU (zero token cost) as `normal`, `database error`, `authentication failure`, or `network timeout`.
+   * **Deep Diagnostic Tier (Gemini 1.5 Flash)**: When a critical error (such as HTTP `5xx` or a severe database/auth/timeout failure) occurs, the Go backend queries Gemini to obtain a context-aware root cause diagnosis and step-by-step SRE remediation playbook.
+2. **Token-Saving Incident Cache**:
+   * To prevent high API token usage, Gemini diagnostics are cached in memory using a signature key composed of `Method|Path|Code`. The system **never calls the Gemini API twice for the same incident type**, serving subsequent repeats from the local cache instantly.
+3. **Real-time Log Tailing & Custom Format Parsing**:
+   * Tails actual service logs (e.g., Nginx, Apache, or custom application logs) using concurrent file seeks.
+   * Leverages **named regex capture groups** (e.g. `(?P<ip>\S+)`, `(?P<latency>\d+)`) to map fields dynamically without code modification.
+4. **Golden Signals Telemetry**:
+   * Real-time rolling aggregations of request rates (RPS), average latency, total request volumes, and success rate percentages mapped dynamically.
+5. **Programmatic Alert Integrations (SSE)**:
+   * Exposes a persistent Server-Sent Events (SSE) stream (`/events`) that pushes telemetry updates every 500ms. SREs can write custom script clients to pipe these live alerts directly into Slack, Discord, or PagerDuty.
 
 ---
 
