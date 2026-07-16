@@ -7,6 +7,8 @@
 [![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Zero--Shot-orange)](https://huggingface.co)
 [![Gemini](https://img.shields.io/badge/Gemini-1.5%20Flash-purple?logo=googlegemini)](https://gemini.google.com)
 
+![Dashboard Preview](dashboard_preview.png)
+
 ---
 
 ### 💡 What is CompassLog?
@@ -116,7 +118,14 @@ To monitor your own live logs, run the application with the `-generator=false` f
 
 ### 1. Monitoring Standard Nginx / Apache Access Logs
 
-By default, standard combined access logs can be monitored with the default regex. Run:
+By default, standard combined access logs can be monitored with the default regex.
+
+**Example log line format:**
+```
+127.0.0.1 - - [16/Jul/2026:11:17:59 -0700] "GET /index.html HTTP/1.1" 200 4523 "-" "Mozilla/5.0"
+```
+
+**Run command:**
 ```bash
 go run . -generator=false -file=/var/log/nginx/access.log -port=9000
 ```
@@ -132,14 +141,33 @@ For custom log formats, specify a custom regex pattern using `-regex`. To map fi
 - `(?P<size>\d+)` - Response size in bytes
 - `(?P<latency>\d+)` - Server latency / response time in milliseconds
 
-#### Example: Monitoring Nginx Logs with Latency
+#### Example A: Nginx Logs with Latency
 
 If your Nginx log format is configured to output request time in milliseconds at the end of the line:
 `log_format custom '$remote_addr - $remote_user [$time_local] "$request" $status $body_bytes_sent $request_time';`
 
-You can monitor it using:
+**Example log line format:**
+```
+192.168.1.15 - - [16/Jul/2026:11:18:24 -0700] "POST /api/v1/checkout HTTP/1.1" 500 1024 380
+```
+
+**Run command:**
 ```bash
 go run . -generator=false -file=/var/log/nginx/custom_access.log -regex='^(?P<ip>\S+) - \S+ \[(?P<timestamp>.*?)\] "(?P<method>\S+) (?P<path>\S+) \S+" (?P<code>\d+) (?P<size>\d+) (?P<latency>\d+)$'
+```
+
+#### Example B: Custom Application Server Logs
+
+If your application logs write out formatted server telemetry on request completion:
+
+**Example log line format:**
+```
+[16/Jul/2026:10:58:06] GET /api/v1/health 200 12ms (192.168.1.5)
+```
+
+**Run command:**
+```bash
+go run . -generator=false -file=/var/log/my-app.log -regex='^\[(?P<timestamp>.*?)\] (?P<method>\S+) (?P<path>\S+) (?P<code>\d+) (?P<latency>\d+)ms \((?P<ip>\S+)\)$'
 ```
 
 ---
