@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Go Log Analyzer Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-base: #0B0E14;
+            --bg-card: rgba(22, 25, 32, 0.7);
+            --border-glow: rgba(255, 255, 255, 0.1);
+            --accent-primary: #7C3AED;
+            --accent-secondary: #06B6D4;
+            --success: #10B981;
+            --warning: #F59E0B;
+            --error: #F43F5E;
+            --text-main: #F3F4F6;
+            --text-muted: #9CA3AF;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-main);
+            font-family: 'Outfit', sans-serif;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        header {
+            margin-bottom: 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        h1 {
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            background: linear-gradient(135deg, var(--accent-secondary), var(--accent-primary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            background: var(--bg-card);
+            padding: 4px;
+            border-radius: 8px;
+            border: 1px solid var(--border-glow);
+        }
+
+        .btn {
+            background: transparent;
+            border: none;
+            color: var(--text-muted);
+            padding: 8px 16px;
+            font-size: 12px;
+            font-weight: 600;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .btn.active, .btn:hover {
+            background: var(--accent-primary);
+            color: #fff;
+            box-shadow: 0 0 10px rgba(124, 58, 237, 0.5);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1.5fr;
+            gap: 20px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            border-radius: 16px;
+            border: 1px solid var(--border-glow);
+            padding: 20px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+            backdrop-filter: blur(10px);
+        }
+
+        .card-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .stat-box {
+            background: rgba(255,255,255,0.03);
+            border-radius: 12px;
+            padding: 16px;
+            border: 1px solid rgba(255,255,255,0.05);
+            text-align: center;
+        }
+
+        .stat-val {
+            font-size: 28px;
+            font-weight: 800;
+            font-family: 'Outfit', sans-serif;
+            color: #fff;
+        }
+
+        .stat-box.cyan .stat-val { color: var(--accent-secondary); }
+        .stat-box.violet .stat-val { color: var(--accent-primary); }
+        .stat-box.success .stat-val { color: var(--success); }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+        }
+
+        .leaderboard-list {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.02);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+        }
+
+        .leaderboard-path {
+            font-family: 'JetBrains Mono', monospace;
+            color: var(--accent-secondary);
+        }
+
+        .leaderboard-count {
+            font-weight: bold;
+            background: rgba(255,255,255,0.08);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+
+        /* Console Stream styles */
+        .console-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 350px;
+        }
+
+        .console {
+            flex-grow: 1;
+            background: #000;
+            border-radius: 8px;
+            border: 1px solid var(--border-glow);
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 11px;
+            padding: 12px;
+            overflow-y: auto;
+            color: #38BDF8;
+            white-space: pre-wrap;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .log-entry {
+            margin-bottom: 4px;
+            line-height: 1.4;
+        }
+
+        .log-entry.code-200 { color: #34D399; }
+        .log-entry.code-404 { color: #F59E0B; }
+        .log-entry.code-500 { color: #F87171; }
+
+        /* SVG Line Graph styles */
+        .graph-wrapper {
+            height: 180px;
+            margin-top: 12px;
+        }
+
+        svg {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .grid-line {
+            stroke: rgba(255,255,255,0.05);
+            stroke-width: 1;
+        }
+
+        .chart-line {
+            fill: none;
+            stroke: url(#line-gradient);
+            stroke-width: 2.5;
+            stroke-linecap: round;
+        }
+
+        .chart-glow {
+            fill: none;
+            stroke: var(--accent-secondary);
+            stroke-width: 8;
+            opacity: 0.15;
+            stroke-linecap: round;
+        }
+
+        .pulse-circle {
+            fill: var(--accent-secondary);
+            stroke: #fff;
+            stroke-width: 1.5;
+            r: 4;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div>
+            <h1>Compass Log Analyzer</h1>
+            <div class="subtitle">Go Concurrent Monitoring & Dynamic Telemetry Dashboard</div>
+        </div>
+
+        <div class="controls">
+            <button class="btn active" id="rate-medium" onclick="setRate(300, 'medium')">Medium (3.3/s)</button>
+            <button class="btn" id="rate-fast" onclick="setRate(50, 'fast')">Hyper Speed (20/s)</button>
+            <button class="btn" id="rate-slow" onclick="setRate(1000, 'slow')">Slow (1/s)</button>
+        </div>
+    </header>
+
+    <div class="grid">
+        <!-- LEFT COLUMN: STATS AND ANALYTICS -->
+        <div style="display: flex; flex-direction: column; gap: 20px;">
+            <div class="card">
+                <div class="card-title">Golden Signals</div>
+                <div class="stat-grid">
+                    <div class="stat-box cyan">
+                        <div class="stat-val" id="stat-rate">0</div>
+                        <div class="stat-label">Requests / Sec</div>
+                    </div>
+                    <div class="stat-box violet">
+                        <div class="stat-val" id="stat-latency">0ms</div>
+                        <div class="stat-label">Avg Latency</div>
+                    </div>
+                    <div class="stat-box success">
+                        <div class="stat-val" id="stat-success-rate">100%</div>
+                        <div class="stat-label">Success Rate</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-val" id="stat-total">0</div>
+                        <div class="stat-label">Total Requests</div>
+                    </div>
+                </div>
+
+                <div class="card-title">Live Response Latency Chart (Last 30 periods)</div>
+                <div class="graph-wrapper">
+                    <svg viewBox="0 0 300 100" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                                <stop offset="0%" stop-color="#7C3AED" />
+                                <stop offset="100%" stop-color="#06B6D4" />
+                            </linearGradient>
+                        </defs>
+                        <!-- Grid Lines -->
+                        <line x1="0" y1="20" x2="300" y2="20" class="grid-line"></line>
+                        <line x1="0" y1="50" x2="300" y2="50" class="grid-line"></line>
+                        <line x1="0" y1="80" x2="300" y2="80" class="grid-line"></line>
+                        
+                        <!-- Line Graph Path -->
+                        <path id="graph-path" class="chart-line" d="M 0 50 L 300 50"></path>
+                        <path id="graph-path-glow" class="chart-glow" d="M 0 50 L 300 50"></path>
+                        <circle id="graph-pulse" class="pulse-circle" cx="300" cy="50"></circle>
+                    </svg>
+                </div>
+            </div>
+
+            <div class="card" style="flex-grow: 1;">
+                <div class="card-title">Top Requested Endpoints</div>
+                <div class="leaderboard-list" id="leaderboard">
+                    <div class="leaderboard-item">
+                        <span class="leaderboard-path">No requests recorded yet.</span>
+                        <span class="leaderboard-count">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT COLUMN: ACCESS LOG CONSOLE -->
+        <div class="card console-wrapper">
+            <div class="card-title">
+                <span>Access Logs Console</span>
+                <span style="color: var(--accent-secondary); font-size: 11px;">● Streaming via SSE</span>
+            </div>
+            <div class="console" id="console-stream">
+                <div class="log-entry">Waiting for incoming logs...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const consoleStream = document.getElementById("console-stream");
+        const statRate = document.getElementById("stat-rate");
+        const statLatency = document.getElementById("stat-latency");
+        const statSuccessRate = document.getElementById("stat-success-rate");
+        const statTotal = document.getElementById("stat-total");
+        const leaderboard = document.getElementById("leaderboard");
+        const graphPath = document.getElementById("graph-path");
+        const graphPathGlow = document.getElementById("graph-path-glow");
+        const graphPulse = document.getElementById("graph-pulse");
+
+        let latencyHistory = Array(30).fill(50); // Initial dummy graph buffer
+
+        // Load configuration and customize UI
+        fetch("/config")
+            .then(res => res.json())
+            .then(config => {
+                // Update subtitle with monitored log file path
+                const subtitle = document.querySelector(".subtitle");
+                if (subtitle) {
+                    const generatorStatus = config.generator_enabled ? "Generator: Active" : "Generator: Inactive (External Logs)";
+                    subtitle.innerText = `Monitoring: ${config.log_file} | ${generatorStatus}`;
+                }
+                
+                // Hide rate controls if generator is disabled
+                if (!config.generator_enabled) {
+                    const controls = document.querySelector(".controls");
+                    if (controls) {
+                        controls.style.display = "none";
+                    }
+                }
+            })
+            .catch(err => console.error("Error loading config:", err));
+
+        // Connect to Go Server-Sent Events stream
+        const evtSource = new EventSource("/events");
+
+        evtSource.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            updateDashboard(data);
+        };
+
+        evtSource.onerror = function() {
+            console.log("Server disconnected, retrying...");
+        };
+
+        function updateDashboard(data) {
+            // 1. Update Core Stats
+            statTotal.innerText = data.total_requests.toLocaleString();
+            statRate.innerText = data.request_rate;
+            statLatency.innerText = Math.round(data.avg_latency) + "ms";
+
+            // 2. Calculate Success Rate (Status 2xx / Total)
+            const codes = data.status_codes || {};
+            let successes = 0;
+            let total = 0;
+            for (let code in codes) {
+                const count = codes[code];
+                total += count;
+                if (code.startsWith("2") || code.startsWith("3")) {
+                    successes += count;
+                }
+            }
+            const successPct = total > 0 ? Math.round((successes / total) * 100) : 100;
+            statSuccessRate.innerText = successPct + "%";
+            if (successPct < 90) {
+                statSuccessRate.parentNode.style.borderColor = "var(--error)";
+                statSuccessRate.style.color = "var(--error)";
+            } else if (successPct < 97) {
+                statSuccessRate.parentNode.style.borderColor = "var(--warning)";
+                statSuccessRate.style.color = "var(--warning)";
+            } else {
+                statSuccessRate.parentNode.style.borderColor = "rgba(255,255,255,0.05)";
+                statSuccessRate.style.color = "var(--success)";
+            }
+
+            // 3. Update Live Logs Console
+            const logs = data.recent_logs || [];
+            if (logs.length > 0) {
+                consoleStream.innerHTML = "";
+                logs.forEach(log => {
+                    const line = document.createElement("div");
+                    line.className = "log-entry code-" + (log.code >= 500 ? "500" : log.code >= 400 ? "404" : "200");
+                    line.innerText = `${log.ip} - [${log.timestamp}] "${log.method} ${log.path}" ${log.code} ${log.size}B (${log.latency}ms)`;
+                    consoleStream.appendChild(line);
+                });
+                // Auto scroll console to bottom
+                consoleStream.scrollTop = consoleStream.scrollHeight;
+            }
+
+            // 4. Update Path Leaderboard
+            const paths = data.path_hits || {};
+            const sortedPaths = Object.entries(paths).sort((a,b) => b[1] - a[1]).slice(0, 5);
+            leaderboard.innerHTML = "";
+            if (sortedPaths.length === 0) {
+                leaderboard.innerHTML = `<div class="leaderboard-item"><span class="leaderboard-path">Waiting for traffic...</span></div>`;
+            } else {
+                sortedPaths.forEach(([path, count]) => {
+                    const item = document.createElement("div");
+                    item.className = "leaderboard-item";
+                    item.innerHTML = `<span class="leaderboard-path">${path}</span><span class="leaderboard-count">${count}</span>`;
+                    leaderboard.appendChild(item);
+                });
+            }
+
+            // 5. Update SVG Graph History
+            // Map average latency to a chart height value (scale: 0ms -> y=90, 800ms -> y=10)
+            const currentLatency = Math.round(data.avg_latency) || 50;
+            latencyHistory.push(currentLatency);
+            latencyHistory.shift();
+
+            // Find min/max in history for adaptive scaling
+            const maxVal = Math.max(...latencyHistory, 200);
+            const minVal = Math.min(...latencyHistory, 0);
+            const range = maxVal - minVal;
+
+            let pathD = "";
+            latencyHistory.forEach((val, idx) => {
+                const x = (idx / 29) * 300;
+                // Calculate y percentage
+                const pct = (val - minVal) / range;
+                const y = 90 - (pct * 80); // clamp y coordinates to graph bounding box [10, 90]
+                if (idx === 0) {
+                    pathD += `M ${x} ${y}`;
+                } else {
+                    pathD += ` L ${x} ${y}`;
+                }
+
+                // Place final pulse circle at the last coordinate
+                if (idx === 29) {
+                    graphPulse.setAttribute("cx", x);
+                    graphPulse.setAttribute("cy", y);
+                }
+            });
+
+            graphPath.setAttribute("d", pathD);
+            graphPathGlow.setAttribute("d", pathD);
+        }
+
+        // Change Log Generator Speed
+        function setRate(ms, label) {
+            fetch(`/rate?delay=${ms}`, { method: 'POST' })
+                .then(response => {
+                    if (response.ok) {
+                        // Deactivate other buttons
+                        document.querySelectorAll('.controls button').forEach(btn => {
+                            btn.classList.remove('active');
+                        });
+                        document.getElementById("rate-" + label).classList.add('active');
+                    }
+                })
+                .catch(err => console.error("Rate update failed: ", err));
+        }
+    </script>
+</body>
+</html>
