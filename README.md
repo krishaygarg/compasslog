@@ -1,6 +1,19 @@
-# CompassLog
+# 🧭 CompassLog
 
-A high-performance, real-time concurrent log parser, metrics aggregator, and hybrid AI telemetry dashboard written in Go.
+> **Transform raw server access logs into a real-time, interactive telemetry dashboard with automated, token-efficient AI SRE incident diagnostics.**
+
+[![Go Version](https://img.shields.io/badge/Go-1.21%2B-blue?logo=go)](https://golang.org)
+[![Python Version](https://img.shields.io/badge/Python-3.8%2B-green?logo=python)](https://python.org)
+[![Hugging Face](https://img.shields.io/badge/%F0%9F%A4%97%20Hugging%20Face-Zero--Shot-orange)](https://huggingface.co)
+[![Gemini](https://img.shields.io/badge/Gemini-1.5%20Flash-purple?logo=googlegemini)](https://gemini.google.com)
+
+---
+
+### 💡 What is CompassLog?
+
+When an outage occurs, reading raw lines in a log terminal is slow and stressful. **CompassLog** is a lightweight developer-centric tool that tails your local/production log files and instantly streams structured, real-time analytics to a web dashboard. 
+
+It acts as a **local diagnostic command center** for developers and SREs—parsing log patterns, aggregating Golden Signals metrics, classifying anomalies locally on CPU with zero token cost, and querying Gemini on-demand to suggest remediation playbooks for active incidents.
 
 ---
 
